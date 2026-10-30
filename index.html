@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verified Contributor Payroll</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#14181f; --mute:#5b6573; --line:#dde1e7; --accent:#0b6e4f; --bad:#b3261e; --warn:#8a5a00; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1318; --card:#171c23; --ink:#e8ecf1; --mute:#9aa5b3; --line:#2a323d; --accent:#3ecf9a; --bad:#ff8a80; --warn:#f0b44c; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.45 -apple-system,system-ui,Segoe UI,sans-serif; }
+  main { max-width:680px; margin:0 auto; padding:16px; }
+  h1 { font-size:22px; margin:8px 0 4px; } h2 { font-size:17px; margin:0 0 8px; } h3 { font-size:15px; margin:14px 0 6px; }
+  p { margin:6px 0; } .mute { color:var(--mute); font-size:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin:12px 0; }
+  label { display:block; font-size:13px; color:var(--mute); margin:8px 0 2px; }
+  input, textarea, select { width:100%; padding:10px; font-size:16px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); font-family:inherit; }
+  textarea { min-height:110px; font-family:ui-monospace,Menlo,monospace; font-size:13px; }
+  button { margin-top:10px; padding:11px 14px; font-size:16px; border:0; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; }
+  button.alt { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  button.danger { background:var(--bad); color:#fff; }
+  button.small { padding:7px 10px; font-size:14px; margin:4px 6px 0 0; }
+  button:disabled { opacity:.5; }
+  .row { display:flex; gap:8px; } .row > * { flex:1; min-width:0; }
+  #log { white-space:pre-wrap; font-size:14px; word-break:break-all; } .ok { color:var(--accent); } .err { color:var(--bad); } .warn { color:var(--warn); }
+  .wk { border-top:1px solid var(--line); padding:8px 0; font-size:14px; word-break:break-word; }
+  .plan { border:1px solid var(--line); border-radius:10px; padding:10px; margin:8px 0; }
+  .plan b { word-break:break-all; }
+  .spec { white-space:pre-wrap; font-family:ui-monospace,Menlo,monospace; font-size:12px; background:var(--bg); border-radius:8px; padding:8px; word-break:break-word; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Verified Contributor Payroll</h1>
+  <p class="mute">Pay ambassadors and contributors weekly, with each week released only when the work is checked. The money is locked in the contract, the rules are fixed when the plan is created, and paid weeks can never be taken back. Your own wallet signs everything here. Metis Andromeda, USDC.</p>
+  <p class="warn">Beta, unaudited contract. A plan holds at most 100 USDC. Use small amounts.</p>
+
+  <div class="card">
+    <h2>1. Connect</h2>
+    <label for="pot">Payroll contract address</label>
+    <input id="pot" placeholder="0x... (from the deployer)" autocomplete="off">
+    <button id="connect">Connect wallet</button>
+    <p id="acct" class="mute"></p>
+    <p id="bal" class="mute"></p>
+  </div>
+
+  <div class="card">
+    <h2>2. Fund a contributor (project)</h2>
+    <label for="contrib">Contributor wallet</label>
+    <input id="contrib" placeholder="0x..." autocomplete="off">
+    <div class="row">
+      <div><label for="weekly">USDC per week</label><input id="weekly" inputmode="decimal" value="1"></div>
+      <div><label for="weeks">Number of weeks (1 to 26)</label><input id="weeks" inputmode="numeric" value="4"></div>
+    </div>
+    <label for="period">Pay period</label>
+    <select id="period"><option value="604800" selected>Weekly (normal)</option><option value="86400">Daily</option><option value="3600">Hourly (for testing only)</option></select>
+    <label for="agent">Checking agent address (checks on-chain proof)</label>
+    <input id="agent" placeholder="0x..." autocomplete="off">
+    <label for="admin">Admin for the fallback sign-off (optional, only for work the chain cannot show)</label>
+    <input id="admin" placeholder="0x... or leave empty" autocomplete="off">
+    <label for="spec">What counts as done (everyone can read this, and it cannot be changed)</label>
+    <div class="row"><button class="alt small" id="p-erc20" type="button">On-chain: tokens sent</button><button class="alt small" id="p-aave" type="button">On-chain: Aave supply</button><button class="alt small" id="p-swap" type="button">On-chain: swap</button><button class="alt small" id="p-log" type="button">On-chain: contract events</button><button class="alt small" id="p-manual" type="button">Fallback: admin sign-off</button></div>
+    <p class="mute">Start with an on-chain check: the agent verifies it from the chain and anyone can re-check it. Use admin sign-off only for work the chain cannot show.</p>
+    <textarea id="spec"></textarea>
+    <p class="mute">The total (USDC per period x number of periods) is locked now. Each finished period is decided once by the agent or the admin, and that decision is final. Approved periods belong to the contributor. Rejected periods, and periods nobody decided in time (7 days for weekly plans, 1 day for shorter ones), return to you.</p><p class="warn">If you list yourself as the admin, you can reject any period, and the contributor will see that on-chain. Contributors should check who the checkers are before starting work.</p>
+    <button id="create">Lock the pot and create the plan</button>
+  </div>
+
+  <div class="card">
+    <h2>3. My plans</h2>
+    <p class="mute">Shows plans where your wallet is the funder, contributor, agent or admin.</p>
+    <button id="load" class="alt">Load my plans</button>
+    <div class="row"><input id="openid" inputmode="numeric" placeholder="Open plan number"><button id="open" class="alt" style="margin-top:0">Open</button></div>
+    <div id="plans"></div>
+  </div>
+
+  <div class="card"><h2>Status</h2><div id="log" class="mute">Not connected.</div></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script>
+const USDC = '0xEA32A96608495e54156Ae48931A7c20f0dcc1a21';
+const DEFAULT_PAYROLL = '0x94763c42e8B4839DE8Ff0b475C9B74E0892Fa149';  // set to the deployed PayrollPot address; a ?pot=0x... link overrides it
+const DEFAULT_AGENT = '';    // set to the checking agent's wallet address; a ?agent=0x... link overrides it
+const PLAN = 'tuple(address funder,address contributor,address agent,address admin,uint128 weekly,uint64 start,uint32 period,uint8 numWeeks,uint32 approved,uint32 rejected,uint32 claimed,uint32 reclaimed,string spec)';
+const ABI = [
+  'function token() view returns (address)', 'function nextId() view returns (uint256)',
+  `function plan(uint256 id) view returns (${PLAN})`,
+  'function weekState(uint256 id,uint8 week) view returns (uint8)', 'function weekEnd(uint256 id,uint8 week) view returns (uint256)',
+  'function claimable(uint256 id) view returns (uint256)', 'function reclaimable(uint256 id) view returns (uint256)',
+  'function createPlan(tuple(address contributor,address agent,address admin,uint128 weekly,uint8 numWeeks,uint32 period,uint64 start,string spec) p) returns (uint256)',
+  'function decide(uint256 id,uint8 week,bool approve,string proof)', 'function claim(uint256 id)', 'function reclaim(uint256 id)',
+  'event PlanCreated(uint256 indexed id,address indexed funder,address indexed contributor,string spec)',
+  'event WeekDecided(uint256 indexed id,uint8 week,bool approved,address indexed by,string proof)',
+];
+const ERC20 = ['function approve(address,uint256) returns (bool)', 'function allowance(address,address) view returns (uint256)', 'function balanceOf(address) view returns (uint256)'];
+const STATES = ['Upcoming', 'Finished, waiting for a decision', 'Approved, not claimed yet', 'Claimed', 'Rejected (returns to the funder)', 'Not decided in time (returns to the funder)', 'Returned to the funder'];
+const SPECS = {
+  manual: 'Weekly report posted in the community channel and signed off by the admin.',
+  erc20: JSON.stringify({ title: 'Send at least 1 USDC in the week', checks: [{ type: 'erc20', token: USDC, direction: 'out', minAmount: '1', minCount: 1 }] }, null, 1),
+  aave: JSON.stringify({ title: 'Supply at least 1 USDC to Aave on Metis', checks: [{ type: 'aave_supply', asset: USDC, minAmount: '1', decimals: 6, minCount: 1 }] }, null, 1),
+  swap: JSON.stringify({ title: 'Make a swap on Netswap (METIS/USDC)', checks: [{ type: 'swap', pair: '0x5Ae3ee7fBB3Cb28C17e7ADc3a6Ae605ae2465091', minCount: 1 }] }, null, 1),
+  log: JSON.stringify({ title: 'At least 3 events that name the contributor', checks: [{ type: 'log', contract: '0xCONTRACT_ADDRESS', topic0: '0xEVENT_TOPIC_HASH_64_HEX_CHARS', topicIndex: 1, min: 3 }] }, null, 1),
+};
+const ZERO = '0x0000000000000000000000000000000000000000';
+const $ = (id) => document.getElementById(id);
+let signer, me, pot, token;
+
+const say = (t, cls) => { $('log').className = cls || 'mute'; $('log').textContent = t; };
+const usd = (s) => ethers.parseUnits(String(s).trim(), 6);
+const fmt = (v) => ethers.formatUnits(v, 6);
+const short = (a) => a.slice(0, 6) + '…' + a.slice(-4);
+const lock = (on) => document.querySelectorAll('button').forEach((b) => (b.disabled = on));
+const guard = (fn) => async () => { lock(true); try { if (!signer || !pot) throw new Error('Connect your wallet first (step 1).'); await fn(); } catch (e) { say('❌ ' + (e.shortMessage || e.reason || e.message), 'err'); } finally { lock(false); } };
+const addr = (id, optional) => { const v = $(id).value.trim(); if (!v && optional) return ZERO; if (!ethers.isAddress(v)) throw new Error('Not a valid address in the ' + id + ' box.'); return ethers.getAddress(v.toLowerCase()); };
+const clip = (t) => { let s = t.trim(); while (new TextEncoder().encode(s).length > 480) s = s.slice(0, -1); return s; }; // the contract allows 500 bytes
+const el = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
+
+try {
+  const q = new URLSearchParams(location.search);
+  $('pot').value = q.get('pot') || DEFAULT_PAYROLL; $('agent').value = q.get('agent') || DEFAULT_AGENT;
+} catch (e) {}
+$('spec').value = SPECS.erc20;
+$('p-manual').onclick = () => { $('spec').value = SPECS.manual; };
+$('p-erc20').onclick = () => { $('spec').value = SPECS.erc20; };
+$('p-aave').onclick = () => { $('spec').value = SPECS.aave; };
+$('p-swap').onclick = () => { $('spec').value = SPECS.swap; };
+$('p-log').onclick = () => { $('spec').value = SPECS.log; };
+
+async function refresh() { $('bal').textContent = `Your wallet: ${fmt(await token.balanceOf(me))} USDC.`; }
+async function send(label, txPromise) {
+  say(label + ': confirm in your wallet…');
+  const tx = await txPromise; say(label + ': waiting for the network…');
+  const rc = await tx.wait(); await refresh(); say('✅ ' + label + ' done.\nhttps://explorer.metis.io/tx/' + tx.hash, 'ok');
+  return rc;
+}
+
+$('connect').onclick = async () => { try {
+  const v = $('pot').value.trim(); if (!ethers.isAddress(v)) throw new Error('Enter the payroll contract address first.');
+  if (!window.ethereum) throw new Error('No wallet found. Open this page inside the MetaMask app browser (or Chrome with the MetaMask extension).');
+  try { await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x440' }] }); }
+  catch (e) { if (!(e.code === 4902 || e?.data?.originalError?.code === 4902)) throw new Error('Please switch your wallet to Metis Andromeda (chain 1088) and try again.'); await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId: '0x440', chainName: 'Metis Andromeda', nativeCurrency: { name: 'Metis', symbol: 'METIS', decimals: 18 }, rpcUrls: ['https://andromeda.metis.io/?owner=1088'], blockExplorerUrls: ['https://explorer.metis.io'] }] }); }
+  const provider = new ethers.BrowserProvider(window.ethereum); await provider.send('eth_requestAccounts', []);
+  signer = await provider.getSigner(); me = await signer.getAddress();
+  if ((await provider.getNetwork()).chainId !== 1088n) throw new Error('Switch your wallet to Metis Andromeda (chain 1088).');
+  if ((await provider.getCode(v)) === '0x') throw new Error('No contract at that address on Metis. Check the address.');
+  pot = new ethers.Contract(ethers.getAddress(v), ABI, signer); token = new ethers.Contract(USDC, ERC20, signer);
+  if ((await pot.token()).toLowerCase() !== USDC.toLowerCase()) { pot = null; throw new Error('This contract uses a different token than real m.USDC. Do not use it.'); }
+  window.ethereum.on?.('accountsChanged', () => location.reload()); window.ethereum.on?.('chainChanged', () => location.reload());
+  $('acct').textContent = 'Connected: ' + me + '  |  Contract: ' + ethers.getAddress(v) + ' (check this is the address you were given)'; await refresh(); say('Connected.', 'ok');
+} catch (e) { say('❌ ' + (e.shortMessage || e.message), 'err'); } };
+
+$('create').onclick = guard(async () => {
+  const contributor = addr('contrib'), agent = addr('agent'), admin = addr('admin', true), weekly = usd($('weekly').value), weeks = Number($('weeks').value);
+  const spec = $('spec').value.trim();
+  if (!(weeks >= 1 && weeks <= 26 && Number.isInteger(weeks))) throw new Error('Weeks must be a whole number from 1 to 26.');
+  if (weekly < 100000n) throw new Error('At least 0.1 USDC per week.');
+  if (weekly * BigInt(weeks) > 100000000n) throw new Error('A plan holds at most 100 USDC in this beta.');
+  const bytes = (t) => new TextEncoder().encode(t).length;
+  if (!spec || bytes(spec) > 1000) throw new Error('Write what counts as done (up to 1000 bytes; non-English letters count as more than one).');
+  if (agent === contributor || admin === contributor) throw new Error('The agent and the admin cannot be the contributor.');
+  if (spec.startsWith('{')) { try { JSON.parse(spec); } catch { throw new Error('The spec looks like JSON but is not valid. Fix it or use plain text.'); } }
+  if (spec.includes('CONTRACT_ADDRESS') || spec.includes('EVENT_TOPIC_HASH')) throw new Error('Replace the placeholder values in the spec first.');
+  if (contributor === me) throw new Error('You cannot be the contributor of your own plan.');
+  const total = weekly * BigInt(weeks);
+  if ((await token.balanceOf(me)) < total) throw new Error('Your wallet has less than ' + fmt(total) + ' USDC.');
+  if ((await token.allowance(me, await pot.getAddress())) < total) await send('Approve ' + fmt(total) + ' USDC', token.approve(await pot.getAddress(), total));
+  const rc = await send('Create plan', pot.createPlan({ contributor, agent, admin, weekly, numWeeks: weeks, period: Number($('period').value), start: 0, spec }));
+  let id = null; for (const l of rc.logs) { try { const p = pot.interface.parseLog(l); if (p && p.name === 'PlanCreated') id = p.args.id; } catch {} }
+  say('✅ Plan #' + id + ' created. ' + fmt(total) + ' USDC is now locked.\nShare the plan number with the contributor.', 'ok');
+  if (id !== null) await showPlans([Number(id)]);
+});
+
+function planCard(id, p, claimable, reclaimable, states, ends, now) {
+  const box = el('div', null, 'plan');
+  const roles = []; const l = (a) => a.toLowerCase() === me.toLowerCase();
+  if (l(p.funder)) roles.push('funder'); if (l(p.contributor)) roles.push('contributor'); if (l(p.agent)) roles.push('agent'); if (p.admin !== ZERO && l(p.admin)) roles.push('admin');
+  box.appendChild(el('b', `Plan #${id}`)); box.appendChild(el('span', roles.length ? '  (you: ' + roles.join(', ') + ')' : '', 'mute'));
+  const per = Number(p.period), pname = per === 604800 ? 'week' : per === 86400 ? 'day' : per === 3600 ? 'hour' : per + ' seconds';
+  box.appendChild(el('p', `${fmt(p.weekly)} USDC per ${pname}, ${p.numWeeks} times. Starts ${new Date(Number(p.start) * 1000).toLocaleDateString()}.`));
+  box.appendChild(el('p', `Funder ${p.funder}\nContributor ${p.contributor}\nAgent ${p.agent}\nAdmin ${p.admin === ZERO ? 'none' : p.admin}`, 'mute'));
+  box.appendChild(el('h3', 'What counts as done')); box.appendChild(el('div', p.spec, 'spec'));
+  box.appendChild(el('h3', 'Weeks'));
+  for (let w = 0; w < Number(p.numWeeks); w++) {
+    const row = el('div', null, 'wk'); const s = Number(states[w]);
+    row.appendChild(el('div', `Week ${w + 1} (ends ${new Date(Number(ends[w]) * 1000).toLocaleString()}): ${STATES[s]}`));
+    if (s === 1 && (l(p.agent) || (p.admin !== ZERO && l(p.admin)))) {
+      const note = el('input'); note.id = `note-${id}-${w}`; note.placeholder = 'What you checked (short note or link)'; row.appendChild(note);
+      const ok = el('button', 'Approve week', 'small'); ok.onclick = guard(async () => { await send('Approve week ' + (w + 1), pot.decide(id, w, true, clip(note.value) || 'approved')); await showPlans([id]); });
+      const no = el('button', 'Reject week', 'small danger'); no.onclick = guard(async () => { await send('Reject week ' + (w + 1), pot.decide(id, w, false, clip(note.value) || 'rejected')); await showPlans([id]); });
+      row.appendChild(ok); row.appendChild(no);
+    }
+    box.appendChild(row);
+  }
+  if (claimable > 0n && l(p.contributor)) { const b = el('button', 'Claim ' + fmt(claimable) + ' USDC'); b.onclick = guard(async () => { await send('Claim', pot.claim(id)); await showPlans([id]); }); box.appendChild(b); }
+  if (reclaimable > 0n) { const b = el('button', 'Return ' + fmt(reclaimable) + ' unearned USDC to the funder', 'alt'); b.onclick = guard(async () => { await send('Return to funder', pot.reclaim(id)); await showPlans([id]); }); box.appendChild(b); }
+  return box;
+}
+
+async function showPlans(ids, replace) {
+  const root = $('plans'); if (replace !== false) root.textContent = '';
+  const now = Math.floor(Date.now() / 1000);
+  for (const id of ids) {
+    const p = await pot.plan(id); if (p.funder === ZERO) continue;
+    const n = Number(p.numWeeks), idx = [...Array(n).keys()];
+    const [claimable, reclaimable, states, ends] = await Promise.all([pot.claimable(id), pot.reclaimable(id),
+      Promise.all(idx.map((w) => pot.weekState(id, w))), Promise.all(idx.map((w) => pot.weekEnd(id, w)))]);
+    const old = document.getElementById('plan-' + id); const card = planCard(id, p, claimable, reclaimable, states, ends, now); card.id = 'plan-' + id;
+    if (old) old.replaceWith(card); else root.appendChild(card);
+  }
+}
+
+$('load').onclick = guard(async () => {
+  const next = Number(await pot.nextId()), ids = []; // newest 60 plans, mine only
+  for (let id = next - 1; id >= 1 && id > next - 61; id--) {
+    const p = await pot.plan(id); const mine = [p.funder, p.contributor, p.agent, p.admin].some((a) => a.toLowerCase() === me.toLowerCase());
+    if (mine) ids.push(id);
+  }
+  $('plans').textContent = ''; if (!ids.length) { $('plans').appendChild(el('p', 'No plans found for this wallet in the newest 60.', 'mute')); return; }
+  await showPlans(ids); say('Loaded ' + ids.length + ' plan(s).', 'ok');
+});
+$('open').onclick = guard(async () => {
+  const id = Number($('openid').value); const next = Number(await pot.nextId());
+  if (!Number.isInteger(id) || id < 1 || id >= next) throw new Error('No such plan number.');
+  $('plans').textContent = ''; await showPlans([id]);
+});
+</script>
+</body>
+</html>
