@@ -162,6 +162,7 @@ $('create').onclick = guard(async () => {
   if (spec.startsWith('{')) { try { JSON.parse(spec); } catch { throw new Error('The spec looks like JSON but is not valid. Fix it or use plain text.'); } }
   if (spec.includes('CONTRACT_ADDRESS') || spec.includes('EVENT_TOPIC_HASH')) throw new Error('Replace the placeholder values in the spec first.');
   if (contributor === me) throw new Error('You cannot be the contributor of your own plan.');
+    if (admin === ZERO && !spec.startsWith('{')) throw new Error('This plan has no admin and no on-chain check, so nobody could approve it. Add an admin address (it can be your own wallet) or use one of the On-chain presets.');
   const total = weekly * BigInt(weeks);
   if ((await token.balanceOf(me)) < total) throw new Error('Your wallet has less than ' + fmt(total) + ' USDC.');
   if ((await token.allowance(me, await pot.getAddress())) < total) await send('Approve ' + fmt(total) + ' USDC', token.approve(await pot.getAddress(), total));
